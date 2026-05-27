@@ -1,0 +1,1492 @@
+openapi: 3.1.0
+info:
+  title: Harbor External API
+  version: 0.1.0
+  description: >-
+    Curated external API surface for third-party developers. Authenticate every request with
+    `Authorization: Bearer hbr_…` (API keys are minted in the Harbor web app).
+servers:
+  - url: https://api.testnet.harbor.walrus.xyz
+    description: Testnet
+tags:
+  - name: Spaces
+    description: Space management
+  - name: Buckets
+    description: Bucket management
+  - name: Files
+    description: File metadata and upload
+paths:
+  /api/v1/spaces:
+    get:
+      tags:
+        - Spaces
+      summary: List spaces
+      description: List all spaces accessible to the authenticated user (personal + team).
+      operationId: listSpaces
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - personal
+              - team
+          description: Filter by space type
+      responses:
+        '200':
+          description: List of spaces
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SpaceListItem'
+        '401':
+          description: Not authenticated
+  /api/v1/spaces/{id}/buckets:
+    get:
+      tags:
+        - Buckets
+      summary: List buckets in a space
+      operationId: listBucketsBySpace
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Space UUID
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+          description: Maximum number of buckets to return.
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Opaque cursor returned by a previous page.
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 255
+          description: Case-insensitive substring match on bucket name.
+        - name: visibility
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - public
+              - private
+          description: Filter buckets by visibility.
+        - name: sortField
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - name
+              - date
+              - storage
+            default: date
+          description: Field to sort by (date = createdAt).
+        - name: sortOrder
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: desc
+          description: Sort direction.
+      responses:
+        '200':
+          description: Buckets in the space (paginated).
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - buckets
+                properties:
+                  buckets:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Bucket'
+                  next_cursor:
+                    type:
+                      - string
+                      - 'null'
+                    description: Opaque cursor for the next page; null when no more results.
+        '400':
+          description: Invalid UUID
+        '401':
+          description: Not authenticated
+        '403':
+          description: Access denied
+        '404':
+          description: Space not found
+    post:
+      tags:
+        - Buckets
+      summary: Create bucket in a space
+      operationId: createBucket
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Space UUID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - scope
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                scope:
+                  type: string
+                  enum:
+                    - private
+      responses:
+        '201':
+          description: >-
+            Private bucket reserved. Sign the returned `bytes` locally with the service key and POST
+            the signature to POST /buckets/{id}/finalize to complete creation.
+          content:
+            application/json:
+              schema:
+                type: object
+                description: >-
+                  Private bucket — reserve response. Sign `bytes` locally with the service key, then
+                  POST the signature to /buckets/{id}/finalize.
+                required:
+                  - bucket_id
+                  - bytes
+                  - digest
+                  - state
+                properties:
+                  bucket_id:
+                    type: string
+                    format: uuid
+                  bytes:
+                    type: string
+                    description: Base64 sponsored transaction bytes.
+                  digest:
+                    type: string
+                  state:
+                    type: string
+                    enum:
+                      - pending_policy
+        '400':
+          description: Validation error
+        '401':
+          description: Not authenticated
+        '403':
+          description: Access denied
+        '404':
+          description: Space not found
+        '409':
+          description: Bucket name conflict
+        '422':
+          description: Plan limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanLimitExceededResponse'
+  /api/v1/spaces/{id}/files:
+    get:
+      tags:
+        - Files
+      summary: List files across all buckets in a space (global search)
+      operationId: listSpaceFiles
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Space UUID
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: cursor
+          in: query
+          schema:
+            type: string
+          description: Opaque cursor from a previous response's next_cursor
+        - name: q
+          in: query
+          schema:
+            type: string
+            maxLength: 255
+          description: Case-insensitive substring match on file name.
+        - name: sortField
+          in: query
+          schema:
+            type: string
+            enum:
+              - name
+              - date
+              - size
+              - type
+            default: date
+        - name: sortOrder
+          in: query
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: desc
+      responses:
+        '200':
+          description: File list (across all buckets in the space)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                  pagination:
+                    type: object
+                    properties:
+                      limit:
+                        type: integer
+                      hasMore:
+                        type: boolean
+                      nextCursor:
+                        type:
+                          - string
+                          - 'null'
+                        description: Opaque cursor for the next page, null when no more results
+        '400':
+          description: Invalid request — malformed space UUID or query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Not authenticated
+        '403':
+          description: Access denied
+        '404':
+          description: Space not found
+  /api/v1/buckets/{id}:
+    get:
+      tags:
+        - Buckets
+      summary: Get bucket by ID
+      operationId: getBucketById
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Bucket UUID
+      responses:
+        '200':
+          description: Bucket details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Bucket'
+        '400':
+          description: Invalid UUID
+        '401':
+          description: Not authenticated
+        '403':
+          description: Access denied
+        '404':
+          description: Bucket not found
+    put:
+      tags:
+        - Buckets
+      summary: Update bucket
+      operationId: updateBucket
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Bucket UUID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                sealPolicyId:
+                  type:
+                    - string
+                    - 'null'
+                  minLength: 1
+                  maxLength: 255
+                visibility:
+                  type: string
+                  enum:
+                    - public
+                    - private
+      responses:
+        '200':
+          description: Bucket updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/UpdateBucketResponse'
+        '400':
+          description: Validation error
+        '401':
+          description: Not authenticated
+        '403':
+          description: Access denied or visibility change attempted (immutable in v1)
+        '404':
+          description: Bucket not found
+        '409':
+          description: Bucket name conflict
+    delete:
+      tags:
+        - Buckets
+      summary: Delete bucket
+      description: Requires query parameter `confirm=true`.
+      operationId: deleteBucket
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Bucket UUID
+      responses:
+        '204':
+          description: Bucket deleted
+          headers:
+            X-Deleted-Id:
+              description: UUID of the deleted bucket
+              schema:
+                type: string
+                format: uuid
+        '400':
+          description: >-
+            Missing confirm=true, validation error, or bucket is not empty (files still present or
+            storage in use).
+        '401':
+          description: Not authenticated
+        '403':
+          description: Access denied
+        '404':
+          description: Bucket not found
+  /api/v1/buckets/{id}/files:
+    get:
+      tags:
+        - Files
+      summary: List files in bucket
+      operationId: listBucketFiles
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Bucket UUID
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: cursor
+          in: query
+          schema:
+            type: string
+          description: Opaque cursor from a previous response's next_cursor
+        - name: q
+          in: query
+          schema:
+            type: string
+            maxLength: 255
+        - name: sortField
+          in: query
+          schema:
+            type: string
+            enum:
+              - name
+              - date
+              - size
+              - type
+            default: date
+        - name: sortOrder
+          in: query
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: desc
+      responses:
+        '200':
+          description: File list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                  pagination:
+                    type: object
+                    properties:
+                      limit:
+                        type: integer
+                      hasMore:
+                        type: boolean
+                      nextCursor:
+                        type:
+                          - string
+                          - 'null'
+                        description: Opaque cursor for the next page, null when no more results
+        '400':
+          description: Invalid path parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Not authenticated
+        '403':
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      tags:
+        - Files
+      summary: Upload file (async)
+      operationId: uploadBucketFile
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Bucket UUID
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                name:
+                  type: string
+                  maxLength: 255
+                metadata:
+                  type: string
+                  description: Optional JSON object string persisted in Harbor metadata column. Maximum 8KB.
+                  example: '{"tag":"blue"}'
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/FileSummary'
+                required:
+                  - data
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Not authenticated
+        '403':
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Bucket not found
+        '409':
+          description: Bucket not finalized or duplicate file name in bucket
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Payload too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Quota exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limited
+  /api/v1/buckets/{id}/finalize:
+    post:
+      tags:
+        - Buckets
+      summary: Finalize private bucket
+      description: >-
+        Submit the on-chain signature to finalize a pending private bucket. Transitions the bucket
+        from 'pending' to 'active'.
+      operationId: finalizeBucket
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Bucket UUID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - signature
+              properties:
+                signature:
+                  type: string
+                  minLength: 1
+      responses:
+        '200':
+          description: Bucket finalized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bucket_id:
+                    type: string
+                    format: uuid
+                  seal_policy_id:
+                    type:
+                      - string
+                      - 'null'
+                  state:
+                    type: string
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Not authenticated
+        '403':
+          description: Access denied
+        '404':
+          description: Bucket not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/seal/sponsor:
+    post:
+      tags:
+        - SEAL
+      summary: Sponsor a SEAL transaction
+      description: >-
+        Build and sponsor an on-chain bucket-policy PTB via Enoki. Returns transaction bytes for the
+        client to sign, plus a digest the client must echo to the execute endpoint.
+      operationId: sealSponsor
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              anyOf:
+                - type: object
+                  required:
+                    - kind
+                    - groupIds
+                    - recipientAddress
+                    - scope
+                  properties:
+                    kind:
+                      type: string
+                      enum:
+                        - grant_bucket_access
+                    groupIds:
+                      type: array
+                      items:
+                        type: string
+                      minItems: 1
+                      maxItems: 1000
+                    recipientAddress:
+                      type: string
+                    scope:
+                      type: string
+                      enum:
+                        - read
+                        - readwrite
+                - type: object
+                  required:
+                    - kind
+                    - bucketId
+                  properties:
+                    kind:
+                      type: string
+                      enum:
+                        - bucket_group_create
+                    bucketId:
+                      type: string
+                      minLength: 1
+                - type: object
+                  required:
+                    - kind
+                    - groupId
+                    - member
+                  properties:
+                    kind:
+                      type: string
+                      enum:
+                        - share_admin
+                    groupId:
+                      type: string
+                    member:
+                      type: string
+                - type: object
+                  required:
+                    - kind
+                    - groupId
+                    - member
+                  properties:
+                    kind:
+                      type: string
+                      enum:
+                        - unshare
+                    groupId:
+                      type: string
+                    member:
+                      type: string
+                - type: object
+                  required:
+                    - kind
+                    - groupId
+                    - serviceSignerAddress
+                  properties:
+                    kind:
+                      type: string
+                      enum:
+                        - unshare_bucket_access
+                    groupId:
+                      type: string
+                    serviceSignerAddress:
+                      type: string
+      responses:
+        '200':
+          description: Transaction bytes and digest
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bytes:
+                    type: string
+                  digest:
+                    type: string
+        '401':
+          description: Not authenticated
+        '403':
+          description: Access denied or precheck failed
+  /api/v1/seal/sponsor/{digest}/execute:
+    post:
+      tags:
+        - SEAL
+      summary: Execute a sponsored SEAL transaction
+      description: >-
+        Submit the wallet signature over the sponsored bytes. Enoki broadcasts the transaction and
+        returns the on-chain digest.
+      operationId: sealSponsorExecute
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: digest
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+          description: Sponsor digest returned by POST /seal/sponsor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - signature
+              properties:
+                signature:
+                  type: string
+                  minLength: 1
+      responses:
+        '200':
+          description: On-chain transaction digest
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  digest:
+                    type: string
+        '401':
+          description: Not authenticated
+        '403':
+          description: Access denied
+        '404':
+          description: Digest not found or expired
+  /api/v1/buckets/{id}/files/{fileId}:
+    get:
+      tags:
+        - Files
+      summary: Get file metadata
+      operationId: getFileById
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Bucket UUID
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: File UUID
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/FileSummary'
+                required:
+                  - data
+        '400':
+          description: Invalid id
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not found (or file not in this bucket)
+    delete:
+      tags:
+        - Files
+      summary: Delete file (async, soft-delete + worker)
+      description: >-
+        Marks the file as `deleting` and enqueues a background job that asks Oyster to remove the
+        underlying blob. Returns 204 immediately; storage is released only after the worker confirms
+        the Oyster delete. Subsequent retries are deduplicated by file id.
+      operationId: deleteBucketFile
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Bucket UUID
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: File UUID
+      responses:
+        '204':
+          description: Accepted; file marked deleting
+        '400':
+          description: Invalid path parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Not authenticated
+        '403':
+          description: Access denied
+        '404':
+          description: File not found in this bucket
+  /api/v1/buckets/{id}/files/{fileId}/status:
+    get:
+      tags:
+        - Files
+      summary: Get upload job status
+      description: >-
+        Poll the state of an in-flight upload job after the upload route returns 202. Maps the
+        BullMQ job state to a public enum (queued, active, completed, failed). Returns 404 once the
+        job has been removed from the queue per BullMQ retention limits — clients should rely on the
+        file metadata route to confirm completion thereafter.
+      operationId: getBucketFileUploadStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Bucket UUID
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: File UUID
+      responses:
+        '200':
+          description: Current upload status
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    type: object
+                    required:
+                      - state
+                    properties:
+                      state:
+                        type: string
+                        enum:
+                          - queued
+                          - active
+                          - completed
+                          - failed
+                      progress:
+                        type: number
+                        description: Fractional progress (0..1), present only when the worker reports it.
+                      error:
+                        type: object
+                        description: Structured sanitized error, present only when state is 'failed'.
+                        required:
+                          - code
+                          - message
+                        properties:
+                          code:
+                            type: string
+                          message:
+                            type: string
+                          http_status:
+                            type: number
+        '400':
+          description: Invalid path parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Not authenticated
+        '403':
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: File or upload job not found
+  /api/v1/buckets/{id}/files/{fileId}/download:
+    get:
+      tags:
+        - Files
+      summary: Download file
+      description: >-
+        Stream the raw file content. Returns the file with appropriate Content-Type and
+        Content-Disposition headers. Private/authenticated content is never cached by shared
+        proxies.
+      operationId: downloadBucketFile
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Bucket UUID
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: File UUID
+      responses:
+        '200':
+          description: File stream
+          headers:
+            Content-Type:
+              schema:
+                type: string
+              description: MIME type of the file
+            Content-Disposition:
+              schema:
+                type: string
+              description: attachment; filename="<encoded name>"
+            Content-Length:
+              schema:
+                type: integer
+              description: File size in bytes (omitted when unknown)
+            Cache-Control:
+              schema:
+                type: string
+                example: private, no-store
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid path parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Not authenticated
+        '403':
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Bucket or file not found
+        '423':
+          description: File row is in 'deleting' or 'deleted' status
+        '500':
+          description: Blob stream unavailable
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: API Key
+      description: API key passed as Bearer token. Created via POST /api/v1/api-keys.
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+        code:
+          type: string
+          description: Machine-readable error code (when available)
+          enum:
+            - USED_NONCE
+            - EXPIRED_TIMESTAMP
+            - ADDRESS_MISMATCH
+            - INVALID_CHALLENGE
+            - unauthorized
+            - api_key_registering
+            - api_key_revoking
+            - api_key_revoked
+            - read_only_api_key
+            - bucket_not_in_scope
+            - mirror_missing_grant
+            - bucket_not_finalized
+            - quota_exceeded
+            - payload_too_large
+            - bad_request
+      required:
+        - error
+    PlanLimitExceededResponse:
+      type: object
+      required:
+        - code
+        - limit
+        - currentTier
+      properties:
+        code:
+          type: string
+          enum:
+            - PLAN_LIMIT_EXCEEDED
+        limit:
+          type: string
+          enum:
+            - storage
+            - users
+            - buckets
+        currentTier:
+          type: string
+          enum:
+            - free
+    AddSpaceMemberRequest:
+      type: object
+      required:
+        - userId
+      properties:
+        userId:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum:
+            - admin
+            - editor
+            - viewer
+          default: viewer
+    ChallengeResult:
+      type: object
+      properties:
+        challenge:
+          type: string
+          description: Structured challenge message to sign with wallet
+        nonce:
+          type: string
+          format: uuid
+          description: Server-generated single-use nonce
+        issued_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+          description: Challenge expires 5 minutes after issuance
+      required:
+        - challenge
+        - nonce
+        - issued_at
+        - expires_at
+    AuthenticatedUser:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type:
+            - string
+            - 'null'
+        sui_address:
+          type: string
+        harbor_wallet_address:
+          type:
+            - string
+            - 'null'
+        auth_provider:
+          $ref: '#/components/schemas/AuthProvider'
+        created_at:
+          type: string
+          format: date-time
+    UserProfileDTO:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type:
+            - string
+            - 'null'
+        sui_address:
+          type: string
+        harbor_wallet_address:
+          type:
+            - string
+            - 'null'
+        auth_provider:
+          $ref: '#/components/schemas/AuthProvider'
+        personal_space_id:
+          type:
+            - string
+            - 'null'
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+    AuthProvider:
+      type: string
+      enum:
+        - google
+        - apple
+        - facebook
+        - twitch
+        - wallet
+    LinkedAccount:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        provider:
+          $ref: '#/components/schemas/AuthProvider'
+        provider_address:
+          type: string
+        linked_at:
+          type: string
+          format: date-time
+    ApiKeySummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type:
+            - string
+            - 'null'
+        prefix:
+          type: string
+          description: First 8 characters of the key for identification
+          example: a1b2c3d4
+        space_id:
+          type: string
+          format: uuid
+        permissions:
+          type: string
+          enum:
+            - read_only
+            - read_write
+        last_used_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+    ApiKeyCreateResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type:
+            - string
+            - 'null'
+        key:
+          type: string
+          description: The full raw API key — shown only on creation, never retrievable again
+          example: hbr_a1b2c3d4...
+        space_id:
+          type: string
+          format: uuid
+        permissions:
+          type: string
+          enum:
+            - read_only
+            - read_write
+        created_at:
+          type: string
+          format: date-time
+    SpaceListItem:
+      type: object
+      required:
+        - id
+        - type
+        - name
+        - storage_used
+        - storage_cap
+        - bucket_count
+        - role
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum:
+            - personal
+            - team
+        name:
+          type: string
+        storage_used:
+          type: integer
+          description: Bytes currently stored
+        storage_cap:
+          type: integer
+          description: Maximum bytes allowed
+        bucket_count:
+          type: integer
+        member_count:
+          type:
+            - integer
+            - 'null'
+          description: Only present for team spaces
+        role:
+          type: string
+          enum:
+            - owner
+            - admin
+            - editor
+            - viewer
+          description: owner for personal, team role for team spaces
+        created_at:
+          type: string
+          format: date-time
+    Bucket:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        space_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        oyster_bucket_name:
+          type: string
+        visibility:
+          type: string
+          enum:
+            - public
+            - private
+        seal_policy_id:
+          type:
+            - string
+            - 'null'
+        storage_used:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - space_id
+        - name
+        - oyster_bucket_name
+        - visibility
+        - seal_policy_id
+        - storage_used
+        - storage_cap
+        - created_at
+        - updated_at
+    CreateBucketRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        visibility:
+          type: string
+          enum:
+            - public
+            - private
+        seal_policy_id:
+          type: string
+          description: Required when visibility=private. Must be omitted for public buckets.
+      required:
+        - name
+        - visibility
+        - seal_policy_id
+      additionalProperties: false
+    UpdateBucketRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        seal_policy_id:
+          type:
+            - string
+            - 'null'
+          minLength: 1
+          maxLength: 255
+          description: SEAL policy ID. Pass null to clear.
+        visibility:
+          type: string
+          enum:
+            - public
+            - private
+          description: Immutable in v1 — if provided, the request is rejected with 403.
+      required:
+        - name
+      additionalProperties: false
+    UpdateBucketResponse:
+      type: object
+      required:
+        - id
+        - name
+        - visibility
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        visibility:
+          type: string
+          enum:
+            - public
+            - private
+        updated_at:
+          type: string
+          format: date-time
+    FileSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        bucket_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        blob_id:
+          type:
+            - string
+            - 'null'
+        oyster_object_id:
+          type:
+            - string
+            - 'null'
+        size:
+          type: integer
+        mime_type:
+          type:
+            - string
+            - 'null'
+        status:
+          type: string
+        is_private:
+          type: boolean
+        metadata:
+          type: object
+          additionalProperties: true
+          description: User-defined metadata persisted by Harbor.
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        deleted_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+      required:
+        - id
+        - bucket_id
+        - name
+        - size
+        - status
+        - is_private
+        - created_at
+        - updated_at
