@@ -1,0 +1,1 @@
+hello harbor — this plaintext is encrypted, uploaded, downloaded, and decrypted by the round-trip scripts. if you can read this after the round-trip, the cycle works end-to-end.

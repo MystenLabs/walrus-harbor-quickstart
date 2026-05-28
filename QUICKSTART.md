@@ -121,6 +121,12 @@ finalize to look up the sponsored tx. The bucket row stays in
 `pending_policy` until the Finalize call below succeeds — until then no
 files can be uploaded to it.
 
+> **Sponsor signatures expire fast.** Treat **reserve → sign → finalize**
+> as a single tight sequence. If you stall between reserve and finalize,
+> finalize returns `{"code":"digest_expired"}`. Re-run reserve to get
+> fresh `bytes` and try again. The Postman collection handles this by
+> auto-signing in the Reserve request's post-response script.
+
 ### 4. Sign `bytes` with the service key
 
 Use `@mysten/sui` — it handles the Bech32 decode and the Sui signature

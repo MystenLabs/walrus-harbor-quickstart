@@ -1,0 +1,26 @@
+{
+  "name": "harbor-quickstart-scripts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "curl-driven walkthrough helpers and a full round-trip script for the Harbor API",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "sign-reserve": "tsx --env-file=.env sign-reserve.ts",
+    "encrypt-file": "tsx --env-file=.env encrypt-file.ts",
+    "decrypt-file": "tsx --env-file=.env decrypt-file.ts",
+    "full-round-trip": "tsx --env-file=.env full-round-trip.ts"
+  },
+  "dependencies": {
+    "@mysten/seal": "^1.1.3",
+    "@mysten/sui": "^2.17.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4"
+  }
+}
