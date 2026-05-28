@@ -1,6 +1,6 @@
 import { fromBase64 } from '@mysten/sui/utils';
-import { requireEnv } from './config.js';
-import { loadKeypair, signReserveBytes } from './seal-helpers.js';
+import { requireEnv } from '../config.js';
+import { loadKeypair, signReserveBytes } from '../lib/seal.js';
 
 const [, , base64Bytes] = process.argv;
 if (!base64Bytes) {

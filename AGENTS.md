@@ -7,8 +7,12 @@ Repo: reference code for the Harbor REST API (testnet, alpha).
 - `README.md`, `QUICKSTART.md` — narrative docs. `QUICKSTART.md` §2 is the source of
   truth for endpoint shapes, SDK calls, package ids, and Seal config.
 - `openapi.yaml`, `postman/` — curated API surface.
-- `scripts/` — curl walkthrough + helper CLIs + automated round-trip.
-- `app/` — minimal Hono backend exposing the same flow over local HTTP.
+- `app/` — single pnpm project covering all four runnable surfaces:
+  - `app/src/lib/{seal,harbor}.ts` — shared Seal + Harbor REST helpers.
+  - `app/src/scripts/` — three helper CLIs (`sign-reserve`, `encrypt-file`,
+    `decrypt-file`) + `full-round-trip.ts`.
+  - `app/src/server/index.ts` — Hono backend exposing the flow over local HTTP.
+  - `app/sample.txt` — round-trip plaintext.
 
 ## Conventions
 
@@ -16,8 +20,8 @@ Repo: reference code for the Harbor REST API (testnet, alpha).
 - TypeScript, `NodeNext`, `strict`. Rely on global `fetch`, `FormData`, `Blob`,
   `crypto.getRandomValues`. Load `.env` via Node's built-in `--env-file` flag
   (wired through the pnpm scripts) — no `dotenv` dep.
-- `scripts/` and `app/` are standalone pnpm projects (no workspace).
-- SDKs: `@mysten/sui` ^2.x, `@mysten/seal` ^1.x. Hono + `@hono/node-server` for `app/`.
+- `app/` is a single pnpm project — scripts and server share `lib/`. No workspace.
+- SDKs: `@mysten/sui` ^2.x, `@mysten/seal` ^1.x. Hono + `@hono/node-server` for the server.
 - Secrets via `.env` only. Never log them. Service key stays on the backend.
 
 ## Integration model
@@ -33,14 +37,18 @@ key that signs the reserve transaction and Seal decrypt sessions.
 - Encrypt + `SessionKey` use `ORIGINAL_PACKAGE_ID` (canonical id — Seal pins identity
   derivation to it).
 - `seal_approve` move-call target uses `LATEST_PACKAGE_ID::bucket_policy::seal_approve`.
-- After Finalize the first upload may return `403 mirror_missing_grant` while the ACL
-  indexer catches up. Retry ~3s, ≤20 attempts.
+- After Finalize the first upload (and the first `GET /buckets/{id}` metadata
+  read) may return `403 mirror_missing_grant` while the ACL indexer catches up.
+  Retry ~3s, ≤20 attempts.
 - Poll `…/files/{fileId}/status` until `state === "completed"` before download.
+- `DELETE /api/v1/buckets/{id}` requires `?confirm=true`; also 400s if the bucket
+  still has files.
 
 ## Verify
 
 Per project: `pnpm install && pnpm run typecheck`. Round-trip:
-`pnpm run full-round-trip` in `scripts/` must end with **MATCH** and a successful
-delete.
+`pnpm run full-round-trip` in `app/` must end with **MATCH** and a successful
+delete. Server smoke test: `pnpm start` in `app/`, then POST/GET/DELETE
+through the routes table in `app/README.md`.
 
 When in doubt, re-read `QUICKSTART.md` §2.

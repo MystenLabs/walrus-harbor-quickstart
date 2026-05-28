@@ -1,0 +1,30 @@
+{
+  "name": "harbor-quickstart-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Reference Harbor integration: shared library, four CLI helpers, and a tiny Hono backend that exposes the same flow over local HTTP.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "sign-reserve": "tsx --env-file=.env src/scripts/sign-reserve.ts",
+    "encrypt-file": "tsx --env-file=.env src/scripts/encrypt-file.ts",
+    "decrypt-file": "tsx --env-file=.env src/scripts/decrypt-file.ts",
+    "full-round-trip": "tsx --env-file=.env src/scripts/full-round-trip.ts",
+    "dev": "tsx --env-file=.env --watch src/server/index.ts",
+    "start": "tsx --env-file=.env src/server/index.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.0.4",
+    "@mysten/seal": "^1.1.3",
+    "@mysten/sui": "^2.17.0",
+    "hono": "^4.12.23"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4"
+  }
+}

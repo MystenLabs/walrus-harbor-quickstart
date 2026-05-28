@@ -1,5 +1,5 @@
 import { readFile, writeFile } from 'node:fs/promises';
-import { encryptBytes, makeSealClient, makeSuiClient } from './seal-helpers.js';
+import { encryptBytes, makeSealClient, makeSuiClient } from '../lib/seal.js';
 
 const [, , plaintextPath, sealPolicyId] = process.argv;
 if (!plaintextPath || !sealPolicyId) {

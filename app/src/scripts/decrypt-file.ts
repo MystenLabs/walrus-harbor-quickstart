@@ -1,12 +1,12 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { timingSafeEqual } from 'node:crypto';
-import { requireEnv } from './config.js';
+import { requireEnv } from '../config.js';
 import {
   decryptBytes,
   loadKeypair,
   makeSealClient,
   makeSuiClient,
-} from './seal-helpers.js';
+} from '../lib/seal.js';
 
 const [, , ciphertextPath, sealPolicyId, originalPath = 'sample.txt'] = process.argv;
 if (!ciphertextPath || !sealPolicyId) {

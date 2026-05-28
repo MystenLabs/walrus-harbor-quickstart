@@ -13,7 +13,7 @@ import {
   SEAL_KEY_SERVER_OBJECT_IDS,
   SEAL_THRESHOLD,
   SUI_NETWORK,
-} from './config.js';
+} from '../config.js';
 
 // On-chain `seal_approve` expects `(vector<u8> id, &BucketGroup)` where `id` deserializes
 // as this struct via BCS. Keep field order in sync with Harbor's Move definition.
@@ -104,10 +104,13 @@ export async function decryptBytes(
   keypair: Ed25519Keypair,
   sealPolicyId: string,
   ciphertext: Uint8Array,
-): Promise<Uint8Array> {
+): Promise<Uint8Array<ArrayBuffer>> {
   const parsed = EncryptedObject.parse(ciphertext);
   const idBytes = fromHex(parsed.id.startsWith('0x') ? parsed.id : '0x' + parsed.id);
   const txBytes = await buildSealApproveTxBytes(suiClient, sealPolicyId, idBytes);
   const sessionKey = await createSessionKey(suiClient, keypair);
-  return seal.decrypt({ data: ciphertext, sessionKey, txBytes });
+  const plaintext = await seal.decrypt({ data: ciphertext, sessionKey, txBytes });
+  // Rewrap so the result is backed by a fresh ArrayBuffer (not SharedArrayBuffer),
+  // which is what `Blob`, `c.body(...)`, and Node response writers expect.
+  return new Uint8Array(plaintext);
 }

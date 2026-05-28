@@ -131,8 +131,10 @@ files can be uploaded to it.
 > is taken — either by a live bucket or by one stuck in `pending_policy`
 > from a previous aborted reserve. Pick a new name (e.g. append a Unix
 > timestamp), or clean up the stale bucket: list with
-> `GET /api/v1/spaces/{id}/buckets`, filter
-> `state == "pending_policy"`, then `DELETE /api/v1/buckets/{id}` on each.
+> `GET /api/v1/spaces/{id}/buckets`, filter `state == "pending_policy"`,
+> then `DELETE /api/v1/buckets/{id}?confirm=true` on each (the
+> `confirm=true` query param is required; delete also 400s if the bucket
+> still has files).
 
 ### 4. Sign `bytes` with the service key
 
