@@ -127,6 +127,13 @@ files can be uploaded to it.
 > fresh `bytes` and try again. The Postman collection handles this by
 > auto-signing in the Reserve request's post-response script.
 
+> **Bucket names are unique per space.** A 409 on reserve means the name
+> is taken — either by a live bucket or by one stuck in `pending_policy`
+> from a previous aborted reserve. Pick a new name (e.g. append a Unix
+> timestamp), or clean up the stale bucket: list with
+> `GET /api/v1/spaces/{id}/buckets`, filter
+> `state == "pending_policy"`, then `DELETE /api/v1/buckets/{id}` on each.
+
 ### 4. Sign `bytes` with the service key
 
 Use `@mysten/sui` — it handles the Bech32 decode and the Sui signature
