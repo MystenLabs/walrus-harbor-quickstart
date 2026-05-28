@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { timingSafeEqual } from 'node:crypto';
 
 import { requireEnv } from '../config.js';
-import { HarborClient } from '../lib/harbor.js';
+import { HarborClient, HarborError } from '../lib/harbor.js';
 import {
   decryptBytes,
   encryptBytes,
@@ -32,7 +32,27 @@ if (!space) throw new Error('No spaces found for this API key.');
 console.log(`  space.id=${space.id}${space.name ? ` (${space.name})` : ''}`);
 
 step(2, 'Reserve a private bucket');
-const reserved = await harbor.reserveBucket(space.id, BUCKET_NAME);
+let reserved;
+try {
+  reserved = await harbor.reserveBucket(space.id, BUCKET_NAME);
+} catch (err) {
+  if (err instanceof HarborError && err.parsed?.code === 'PLAN_LIMIT_EXCEEDED') {
+    console.error(
+      `\nBucket cap reached for space ${space.id}. This script leaves each ` +
+        `created bucket behind (only the file is deleted), so cleanup is on you. ` +
+        `Delete empty buckets in the space and retry:\n\n` +
+        `  set -a; source .env; set +a\n` +
+        `  export BASE="https://api.testnet.harbor.walrus.xyz"\n` +
+        `  export AUTH="Authorization: Bearer $HARBOR_API_KEY"\n` +
+        `  curl -sS -H "$AUTH" "$BASE/api/v1/spaces/${space.id}/buckets" \\\n` +
+        `    | jq -r '.buckets[].id' \\\n` +
+        `    | xargs -I{} curl -sS -X DELETE -H "$AUTH" -o /dev/null \\\n` +
+        `        -w '%{http_code} {}\\n' "$BASE/api/v1/buckets/{}?confirm=true"\n`,
+    );
+    process.exit(1);
+  }
+  throw err;
+}
 console.log(`  bucket_id=${reserved.bucket_id} digest=${reserved.digest}`);
 
 step(3, 'Sign reserve bytes with service key');

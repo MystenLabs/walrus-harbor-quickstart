@@ -1,0 +1,5 @@
+# pnpm v11 reads build-script approvals from here, not from package.json.
+# esbuild ships its native binary via the @esbuild/<platform> optional dep, so
+# its postinstall script is safe to skip.
+allowBuilds:
+  esbuild: false

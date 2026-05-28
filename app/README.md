@@ -160,11 +160,22 @@ curl -sS -X DELETE -H "$AUTH" -o /dev/null -w '%{http_code}\n' \
 # → 204
 ```
 
-### Cleanup: stranded `pending_policy` buckets
+### Cleanup: stranded or accumulated buckets
+
+Stranded `pending_policy` (reserve succeeded, finalize never landed):
 
 ```bash
 curl -sS -H "$AUTH" "$BASE/api/v1/spaces/$SPACE_ID/buckets" \
   | jq -r '.buckets[] | select(.state=="pending_policy") | .id' \
+  | xargs -I{} curl -sS -X DELETE -H "$AUTH" -o /dev/null -w '%{http_code} {}\n' \
+      "$BASE/api/v1/buckets/{}?confirm=true"
+```
+
+Nuke every bucket in the space (each 400s if it still has files, 204s if empty):
+
+```bash
+curl -sS -H "$AUTH" "$BASE/api/v1/spaces/$SPACE_ID/buckets" \
+  | jq -r '.buckets[].id' \
   | xargs -I{} curl -sS -X DELETE -H "$AUTH" -o /dev/null -w '%{http_code} {}\n' \
       "$BASE/api/v1/buckets/{}?confirm=true"
 ```
@@ -257,6 +268,13 @@ for production code:
 - **`DELETE /api/buckets/:id` can still return 400 from Harbor.** Even with
   `?confirm=true`, Harbor 400s if the bucket isn't empty — delete its files
   first. Cleanest target is `pending_policy` (no files possible).
+- **`full-round-trip.ts` does not clean up its bucket.** Only the file is
+  deleted; the bucket stays. Repeated runs accumulate and eventually trip the
+  per-space bucket cap (`422 PLAN_LIMIT_EXCEEDED` on the next reserve). The
+  script catches that specific error and prints the cleanup snippet; run it
+  and retry.
+  *Improve:* delete the bucket too at the end (or `set -e` a cleanup trap),
+  or pre-clean stale buckets on startup.
 - **No auth on this server.** It binds to `127.0.0.1` and assumes the caller
   is the local frontend.
   *Improve:* shared-secret header, mTLS, or session cookies before exposing
