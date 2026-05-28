@@ -48,8 +48,8 @@ is the quickest path; a Sui wallet also works — plus `curl`/Postman or Node.js
 1. Sign in at **[testnet.harbor.walrus.xyz](https://testnet.harbor.walrus.xyz/)** —
    Google (via zkLogin) is the quickest path; a Sui wallet also works. Your account and a
    Personal Space are provisioned automatically.
-2. **Settings → API Keys → New API key**, pick the `read_write` role, and copy the
-   `hbr_…` key — it is shown **once**.
+2. **Settings → API Keys → Create API Key**, pick **Read & Write**
+   (`read_write`), and copy the `hbr_…` key — it is shown **once**.
 3. Follow [`QUICKSTART.md`](QUICKSTART.md) to create a Seal-encrypted bucket and round-trip
    a file.
 

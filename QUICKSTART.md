@@ -20,8 +20,8 @@ disabled at the API boundary.
 
 1. Visit [testnet.harbor.walrus.xyz/](https://testnet.harbor.walrus.xyz/) and sign in with Google (via zkLogin) — or a Sui wallet, if you prefer.
    Your account and a **Personal Space** are provisioned automatically.
-2. Open **Settings → API Keys → New API key**, give it a name, pick a
-   **role**, submit.
+2. Open **Settings → API Keys → Create API Key**, name the key, pick a
+   **Permissions** option, submit.
    - **`read_write`** — required for any state change: create/delete
      buckets, upload/rename/delete files, finalize private buckets.
    - **`read_only`** — listing, status, download only. Every write
@@ -65,11 +65,12 @@ setup beforehand and a local decrypt step on download.
 > access keys.
 
 
-### 1. One-time setup — encrypted-capable API key
+### 1. One-time setup — API key with Read & Write
 
-In **Settings → API Keys → New API key**, pick role **`read_write`**
-(private-bucket creation, finalize, and uploads are all writes — the
-toggle is hidden on `read_only` keys) and tick **"Create"**. The reveal screen now exposes two secrets:
+In **Settings → API Keys → Create API Key**, pick **Read & Write**
+(`read_write`). Private-bucket creation, finalize, and uploads are all
+writes — Read-only keys can't perform them. The reveal screen now exposes
+two secrets:
 
 - `hbr_…` — the Harbor API key (same as section 1).
 - `suiprivkey1…` — the **service private key**, an Ed25519 Base64 secret

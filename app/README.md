@@ -39,9 +39,9 @@ app/
   `node:timers/promises`.
 - pnpm.
 - `curl` and [`jq`](https://jqlang.org/) for the curl walkthrough.
-- A Harbor API key with role `read_write` **and** the "Create" capability ticked.
-  The reveal screen also exposes a `suiprivkey1…` **service private key** — copy
-  both.
+- A Harbor API key with the **Read & Write** permission. The reveal screen
+  shows two secrets — the `hbr_…` API key and a `suiprivkey1…` **service
+  private key** — copy both.
 
 ```bash
 cd app
