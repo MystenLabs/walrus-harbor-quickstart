@@ -9,8 +9,10 @@ Everything you need to start building on the **Harbor API**.
 
 ## What is Harbor?
 
-Harbor is decentralized file storage with a simple, Web2-friendly REST API. Files live in
-**buckets**, encrypted client-side with [Seal](https://github.com/MystenLabs/seal) and
+Harbor is a developer-friendly console and REST API for managing files on Walrus. 
+Store, organize, and access data through familiar workflows, backed by durable and 
+verifiable infrastructure. 
+Files live in **buckets**, encrypted client-side with [Seal](https://github.com/MystenLabs/seal) and
 stored on [Walrus](https://www.walrus.xyz/) — Harbor only ever holds ciphertext, never
 your plaintext or decryption keys. Auth is a simple `Authorization: Bearer hbr_…` API
 key minted in the web app; gas for on-chain steps is sponsored for you via Enoki.
