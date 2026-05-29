@@ -69,7 +69,6 @@ Paste your `hbr_…` key into the `bearerToken` environment variable. `baseUrl` 
 
 The same docs are served live from the API:
 
-- Quickstart (HTML): <https://api.testnet.harbor.walrus.xyz/docs/quickstart>
 - OpenAPI viewer (Scalar): <https://api.testnet.harbor.walrus.xyz/docs/openapi>
 - OpenAPI spec (raw): <https://api.testnet.harbor.walrus.xyz/openapi.yaml>
 - Docs index: <https://api.testnet.harbor.walrus.xyz/docs>
