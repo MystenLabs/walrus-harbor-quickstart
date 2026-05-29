@@ -262,9 +262,12 @@ for production code:
   *Improve:* cache `bucketId → seal_policy_id` in memory (or a small KV) after
   create / first lookup.
 - **Server-side encrypt/decrypt of the full payload.** All bytes pass through
-  this server. Easy to reason about; not friendly to multi-GB files.
-  *Improve:* stream chunks through Seal (the SDK supports it) and through
-  `fetch`'s body stream instead of buffering.
+  this server and are buffered in memory — Seal currently operates on a whole
+  `Uint8Array`, so the envelope cannot be streamed end-to-end. Easy to reason
+  about; not friendly to multi-GB files.
+  *Improve:* split large payloads into independently-sealed chunks at the app
+  layer and stream chunk uploads/downloads through `fetch`'s body stream,
+  instead of buffering the whole file.
 - **`DELETE /api/buckets/:id` can still return 400 from Harbor.** Even with
   `?confirm=true`, Harbor 400s if the bucket isn't empty — delete its files
   first. Cleanest target is `pending_policy` (no files possible).
