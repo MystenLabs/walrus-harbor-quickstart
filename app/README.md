@@ -84,8 +84,10 @@ Bucket names must be unique per space, so the snippet appends a Unix timestamp.
 RESERVE=$(curl -sS -X POST -H "$AUTH" -H 'Content-Type: application/json' \
   -d "{\"name\":\"round-trip-$(date +%s)\",\"scope\":\"private\"}" \
   "$BASE/api/v1/spaces/$SPACE_ID/buckets")
+
 export BUCKET_ID=$(echo "$RESERVE" | jq -r '.bucket_id // empty')
 [ -n "$BUCKET_ID" ] || { echo "Reserve failed: $RESERVE"; return 1 2>/dev/null || exit 1; }
+
 export SIGNATURE=$(pnpm --silent sign-reserve "$(echo "$RESERVE" | jq -r '.bytes')")
 echo "BUCKET_ID=$BUCKET_ID"
 ```
@@ -210,16 +212,16 @@ Default `http://127.0.0.1:3000` (loopback only). Override with `PORT` / `HOST`.
 
 ### Routes
 
-| Method | Path | Body | Returns | Behind the scenes |
-|---|---|---|---|---|
-| GET | `/api/spaces` | – | spaces list | – |
-| GET | `/api/spaces/:spaceId/buckets` | – | buckets list | – |
-| POST | `/api/spaces/:spaceId/buckets` | `{name}` | `{bucket_id, seal_policy_id}` | reserve → sign → finalize |
-| GET | `/api/buckets/:bucketId/files` | – | files list | – |
-| POST | `/api/buckets/:bucketId/files` | multipart `file` (+ optional `name`) | `{file_id}` | look up `seal_policy_id`, encrypt, upload-w/-retry, poll until `completed` |
-| GET | `/api/buckets/:bucketId/files/:fileId` | – | raw plaintext | look up `seal_policy_id`, download, decrypt |
-| DELETE | `/api/buckets/:bucketId/files/:fileId` | – | 204 | – |
-| DELETE | `/api/buckets/:bucketId` | – | 204 | passes `?confirm=true` |
+| Method | Path                                   | Body                                 | Returns                       | Behind the scenes                                                          |
+| ------ | -------------------------------------- | ------------------------------------ | ----------------------------- | -------------------------------------------------------------------------- |
+| GET    | `/api/spaces`                          | –                                    | spaces list                   | –                                                                          |
+| GET    | `/api/spaces/:spaceId/buckets`         | –                                    | buckets list                  | –                                                                          |
+| POST   | `/api/spaces/:spaceId/buckets`         | `{name}`                             | `{bucket_id, seal_policy_id}` | reserve → sign → finalize                                                  |
+| GET    | `/api/buckets/:bucketId/files`         | –                                    | files list                    | –                                                                          |
+| POST   | `/api/buckets/:bucketId/files`         | multipart `file` (+ optional `name`) | `{file_id}`                   | look up `seal_policy_id`, encrypt, upload-w/-retry, poll until `completed` |
+| GET    | `/api/buckets/:bucketId/files/:fileId` | –                                    | raw plaintext                 | look up `seal_policy_id`, download, decrypt                                |
+| DELETE | `/api/buckets/:bucketId/files/:fileId` | –                                    | 204                           | –                                                                          |
+| DELETE | `/api/buckets/:bucketId`               | –                                    | 204                           | passes `?confirm=true`                                                     |
 
 ### Smoke test
 
@@ -254,18 +256,18 @@ for production code:
 - **Synchronous upload.** `POST /api/buckets/:id/files` holds the HTTP request
   open until Harbor reports `completed` (≤~1m on testnet today). Frontend UX
   is a single request, but the connection has to survive that long.
-  *Improve:* return `202 {file_id}` immediately and expose
+  _Improve:_ return `202 {file_id}` immediately and expose
   `GET /api/buckets/:id/files/:fileId/status` so the frontend polls.
 - **Stateless `seal_policy_id` lookup.** Each upload/download re-fetches bucket
   metadata to find the policy id. One extra Harbor GET per file op, plus a
   retry loop on `mirror_missing_grant`.
-  *Improve:* cache `bucketId → seal_policy_id` in memory (or a small KV) after
+  _Improve:_ cache `bucketId → seal_policy_id` in memory (or a small KV) after
   create / first lookup.
 - **Server-side encrypt/decrypt of the full payload.** All bytes pass through
   this server and are buffered in memory — Seal currently operates on a whole
   `Uint8Array`, so the envelope cannot be streamed end-to-end. Easy to reason
   about; not friendly to multi-GB files.
-  *Improve:* split large payloads into independently-sealed chunks at the app
+  _Improve:_ split large payloads into independently-sealed chunks at the app
   layer and stream chunk uploads/downloads through `fetch`'s body stream,
   instead of buffering the whole file.
 - **`DELETE /api/buckets/:id` can still return 400 from Harbor.** Even with
@@ -276,19 +278,19 @@ for production code:
   per-space bucket cap (`422 PLAN_LIMIT_EXCEEDED` on the next reserve). The
   script catches that specific error and prints the cleanup snippet; run it
   and retry.
-  *Improve:* delete the bucket too at the end (or `set -e` a cleanup trap),
+  _Improve:_ delete the bucket too at the end (or `set -e` a cleanup trap),
   or pre-clean stale buckets on startup.
 - **No auth on this server.** It binds to `127.0.0.1` and assumes the caller
   is the local frontend.
-  *Improve:* shared-secret header, mTLS, or session cookies before exposing
+  _Improve:_ shared-secret header, mTLS, or session cookies before exposing
   beyond localhost.
 - **CORS is permissive.** `cors()` with defaults so a local frontend on any
   port can call it during development.
-  *Improve:* lock to your frontend origin(s).
+  _Improve:_ lock to your frontend origin(s).
 - **No request validation.** JSON / multipart payloads are taken as-is.
-  *Improve:* `@hono/zod-validator` + zod schemas per route.
+  _Improve:_ `@hono/zod-validator` + zod schemas per route.
 - **No structured logging or tracing.** `hono/logger` only.
-  *Improve:* `pino`, request ids, OpenTelemetry, error-tracking SDK of choice.
+  _Improve:_ `pino`, request ids, OpenTelemetry, error-tracking SDK of choice.
 - **Errors are best-effort.** `HarborError` codes pass through; everything
   else becomes `500 internal_error`.
-  *Improve:* finer-grained mapping + retry/backoff policies per error class.
+  _Improve:_ finer-grained mapping + retry/backoff policies per error class.
